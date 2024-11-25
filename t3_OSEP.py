@@ -5,6 +5,7 @@ from Matrizes import MatrizSimbolica
 import cvxpy as cp
 import gurobipy as gp
 from A import OptimizarFinal
+from gurobipy import GRB
 
 
 # Datos Generadores
@@ -22,6 +23,10 @@ Vp              = [[0, 0], [0.5, 0], [1, 0], [1.5, 0], [2, 0], [2.5, 0], [3, 29]
 num_horas       = 24
 num_gen         = 5
 
+# Crear un objeto de la clase GeneradorPotencia
+generador = GeneradorPotencia(Vv, Vp)
+PVmax           = generador.Gvmax
+
 # Caso inicial
 # Solución de la minimización
 C_o             = OptimizarGeneradores(Demand, Pmin, Pmax, a, b, c, num_horas)
@@ -34,30 +39,52 @@ modelo          = gp.Model("Matriz_Modelo")
 P               = MatrizSimbolica(num_gen, num_horas, "P", model=modelo)
 S               = MatrizSimbolica(num_gen, num_horas, "s", model=modelo)
 U               = MatrizSimbolica(num_gen, num_horas, "u", model=modelo)
+PV              = MatrizSimbolica(1, num_horas, "Pv", model=modelo)
 matriz_S = S.matriz
 matriz_P = P.matriz
 
+# Definir función objetivo
 F              = OptimizarFinal(matriz_P, matriz_S, Cs, a, b, c)
-print(F.FO)
 
-# Ahora ambas matrices compartirán el mismo modelo de optimización
+modelo.setObjective(F.FO, GRB.MINIMIZE)
+
+# Definir restricciones
+    ## Restricción de igualdad
+for hora in range(num_horas):
+    Psum    = 0
+    for gen in range(len(P.matriz)):
+        Psum    = Psum + P.matriz[gen][hora]
+    Psum        = Psum + PV.matriz[0][hora]
+    modelo.addConstr(Psum == Demand[hora], "constrig_" + str(hora + 1)) 
+    ## Restricción maximos
+for hora in range(num_horas):
+    for gen in range(len(P.matriz)):
+        modelo.addConstr(P.matriz[gen][hora] <= U.matriz[gen][hora] * Pmax[gen], "constrmax_" + str(gen + 1)+ "_"+ str(hora + 1)) 
+    modelo.addConstr(PV.matriz[0][hora] <= PVmax[hora], "constrmax_v_"+ str(hora + 1)) 
+    ## Restricción minimos
+for hora in range(num_horas):
+    for gen in range(len(P.matriz)):
+        modelo.addConstr(P.matriz[gen][hora] >= U.matriz[gen][hora] * Pmin[gen], "constrmin_" + str(gen + 1)+ "_"+ str(hora + 1))
+    
 
 
+modelo.optimize()
 
+if modelo.status == GRB.OPTIMAL:
+    # Imprimir el valor de la función objetivo
+    print(f"Valor de la función objetivo (FO): {modelo.objVal}")
 
+    # Imprimir los valores de cada variable
+    for hora in range(num_horas):
+        for gen in range(num_gen):
+            # Acceder a cada variable P
+            print(f"Valor de P_{gen+1}_{hora+1}: {P.matriz[gen][hora].x}")
+        print(f"Valor de PV_{0}_{hora+1}: {PV.matriz[0][hora].x}")
+else:
+    print("No se encontró una solución óptima.")
 
-
-## Crear un objeto de la clase GeneradorPotencia
-#generador = GeneradorPotencia(Vv, Vp)
-#
-#FO         = C_o.FO(Cs)
-#constraints = C_o.constraints()
-#
-#prob = cp.Problem(cp.Minimize(FO), constraints)
-#
-## Resolver el problema
-#prob.solve(solver=cp.CBC)
-
+for gen in range(num_gen):
+    GraficarHoras(P.matriz[gen].x)
 
 # Graficos
 #? GraficarHoras(Demand)

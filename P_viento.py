@@ -39,12 +39,12 @@ class GeneradorPotencia:
 
         # Convertir Vgen a un array de NumPy y calcular Gvmax
         Vgen = np.array(Vgen)
-        Gvmax = Vgen * 200 / 1000  # Convertir de kW a MW
+        Gvmax = (Vgen * 200 / 1000) # Convertir de kW a MW
 
         # Transponer Gvmax para asegurar que tenga la forma correcta
-        Gvmax = Gvmax.T
+        Gvmax = Gvmax.T.tolist()
 
         # Inicializar Gvmin como un arreglo de ceros
-        Gvmin = np.zeros(self.num_horas)
+        Gvmin = np.zeros(self.num_horas).tolist()
 
         return Gvmax, Gvmin
